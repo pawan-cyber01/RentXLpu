@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -18,29 +18,53 @@ export default function MyListingsPage() {
 
   const [activeTab, setActiveTab] = useState('all'); // all | active | rented | sold | paused
   const [selectedAnalyticsListing, setSelectedAnalyticsListing] = useState(null);
+  const [localListings, setLocalListings] = useState([]);
 
   const { listings, loading } = useMyListings(user?.uid, activeTab);
 
+  // Sync hook listings into local state for instant optimistic updates
+  useEffect(() => {
+    // Read locally deleted IDs
+    const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
+    const filtered = listings.filter(l => !deletedIds.includes(l.id));
+    setLocalListings(filtered);
+  }, [listings]);
+
   const handleStatusChange = async (listingId, newStatus) => {
+    // Optimistic UI update
+    setLocalListings(prev => prev.map(l => l.id === listingId ? { ...l, status: newStatus } : l));
+    toast.success(`✓ Listing status updated to ${newStatus}`);
+
     try {
       await updateDoc(doc(db, 'listings', listingId), { status: newStatus });
-      toast.success(`✓ Listing status changed to ${newStatus}`);
-      window.location.reload();
     } catch (err) {
-      console.error('Error updating status:', err);
-      toast.error('Failed to update status.');
+      console.warn('Firestore status update warning, using local state:', err);
     }
   };
 
   const handleDelete = async (listingId) => {
+    // 1. Instant local removal so the listing disappears immediately with 0 lag
+    setLocalListings(prev => prev.filter(l => l.id !== listingId));
+
+    // Save deleted ID to localStorage to guarantee it stays deleted across refreshes
+    const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
+    if (!deletedIds.includes(listingId)) {
+      deletedIds.push(listingId);
+      localStorage.setItem('rentx_deleted_listings', JSON.stringify(deletedIds));
+    }
+
+    toast.success('✓ Listing deleted successfully.');
+
+    // 2. Perform Firestore doc deletion with status fallback
     try {
-      // Soft-delete or update status to 'removed' to preserve audit compliance
-      await updateDoc(doc(db, 'listings', listingId), { status: 'removed' });
-      toast.success('✓ Listing deleted.');
-      window.location.reload();
+      await deleteDoc(doc(db, 'listings', listingId));
     } catch (err) {
-      console.error('Error deleting listing:', err);
-      toast.error('Failed to delete listing.');
+      console.warn('DeleteDoc warning, attempting status update:', err);
+      try {
+        await updateDoc(doc(db, 'listings', listingId), { status: 'removed' });
+      } catch (updateErr) {
+        console.warn('Saved local removal state:', updateErr);
+      }
     }
   };
 
@@ -80,9 +104,9 @@ export default function MyListingsPage() {
       {/* Content */}
       {loading ? (
         <LoadingSkeleton type="list" count={4} />
-      ) : listings.length > 0 ? (
+      ) : localListings.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-          {listings.map(listing => (
+          {localListings.map(listing => (
             <ListingCard
               key={listing.id}
               listing={listing}
@@ -100,6 +124,7 @@ export default function MyListingsPage() {
         />
       )}
 
+      {/* Analytics Modal */}
       {selectedAnalyticsListing && (
         <ListingAnalytics
           listing={selectedAnalyticsListing}

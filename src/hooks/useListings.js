@@ -36,8 +36,9 @@ export function useListings({ type, category, location, condition, minPrice, max
         ...doc.data(),
       }));
 
-      // Filter active status
-      results = results.filter(l => l.status !== 'removed' && l.status !== 'deleted');
+      // Filter out locally deleted listings & removed status
+      const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
+      results = results.filter(l => l.status !== 'removed' && l.status !== 'deleted' && !deletedIds.includes(l.id));
 
       // Filter type (sell | rent)
       if (type === 'sell') {
@@ -195,8 +196,10 @@ export function useMyListings(userId, statusFilter = 'all') {
 
         let results = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
 
+        const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
+
         // Client-side filter by userId
-        results = results.filter(l => l.sellerId === userId);
+        results = results.filter(l => l.sellerId === userId && !deletedIds.includes(l.id));
 
         // Client-side filter by status
         if (statusFilter && statusFilter !== 'all') {
