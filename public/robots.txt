@@ -1,0 +1,13 @@
+# Robots.txt for RentX LPU (https://rentxlpu.vercel.app)
+User-agent: *
+Allow: /
+Allow: /buy
+Allow: /rent
+Allow: /need
+Allow: /explore
+Allow: /reviews
+
+Disallow: /admin/
+Disallow: /profile
+
+Sitemap: https://rentxlpu.vercel.app/sitemap.xml

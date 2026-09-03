@@ -9,8 +9,14 @@ import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import EmptyState from '../components/ui/EmptyState';
 import { useListings } from '../hooks/useListings';
 import { useDebounce } from '../hooks/useDebounce';
+import { useSeo } from '../hooks/useSeo';
 
 export default function RentPage() {
+  useSeo({
+    title: 'Rent Products in LPU — Rent Calculators, Cycles, Inductions & Mattresses',
+    description: 'Rent affordable products per day or week from fellow LPU hostelers. Save money on campus!',
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('recommended');

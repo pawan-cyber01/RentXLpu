@@ -10,8 +10,14 @@ import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import EmptyState from '../components/ui/EmptyState';
 import { useListings } from '../hooks/useListings';
 import { useDebounce } from '../hooks/useDebounce';
+import { useSeo } from '../hooks/useSeo';
 
 export default function BuyPage() {
+  useSeo({
+    title: 'Buy Products in LPU — Secondhand Books, Electronics & Hostel Gear',
+    description: 'Browse products for sale by Lovely Professional University (LPU) students in BH1, BH3, GH1 hostels.',
+  });
+
   const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');

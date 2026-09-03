@@ -9,8 +9,14 @@ import EmptyState from '../components/ui/EmptyState';
 import { useListings } from '../hooks/useListings';
 import { useAuth } from '../contexts/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
+import { useSeo } from '../hooks/useSeo';
 
 export default function HomePage() {
+  useSeo({
+    title: 'RentX LPU — Buy, Rent & Sell Everything in Lovely Professional University',
+    description: 'Buy, rent, and sell books, calculators, cycles, and hostel essentials within Lovely Professional University (LPU).',
+  });
+
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');

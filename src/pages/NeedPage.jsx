@@ -1,7 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Sparkles, Clock, ArrowRight, PackageCheck } from 'lucide-react';
+import { useSeo } from '../hooks/useSeo';
 
 export default function NeedPage() {
+  useSeo({
+    title: 'Need Hub — LPU Campus Student Requirement Requests',
+    description: 'Post specific product requirements and request items from Lovely Professional University hostelers.',
+  });
   return (
     <div className="page-content" style={{
       display: 'flex',
