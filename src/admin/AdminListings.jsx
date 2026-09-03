@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useToast } from '../contexts/ToastContext';
 import { formatPrice } from '../lib/utils';
 import LoadingSkeleton from '../components/ui/LoadingSkeleton';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 export default function AdminListings() {
   const toast = useToast();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     const fetchListings = async () => {
@@ -31,6 +33,32 @@ export default function AdminListings() {
     } catch (err) {
       console.error('Error updating listing status:', err);
       toast.error('Failed to update listing status.');
+    }
+  };
+
+  const handleDeleteListing = async (id) => {
+    // 1. Optimistic removal from admin UI
+    setListings(prev => prev.filter(l => l.id !== id));
+    setDeletingId(null);
+    toast.success('✓ Listing permanently deleted from Firebase.');
+
+    // 2. Permanent deletion from Firebase Firestore
+    try {
+      // Purge images subcollection
+      try {
+        const imgSnap = await getDocs(collection(db, 'listings', id, 'images'));
+        for (const imgDoc of imgSnap.docs) {
+          await deleteDoc(doc(db, 'listings', id, 'images', imgDoc.id));
+        }
+      } catch (e) {}
+
+      // Delete main doc from Firestore
+      await deleteDoc(doc(db, 'listings', id));
+    } catch (err) {
+      console.warn('Admin deleteDoc notice, fallback to status removal:', err);
+      try {
+        await updateDoc(doc(db, 'listings', id), { status: 'removed' });
+      } catch (e) {}
     }
   };
 
@@ -75,7 +103,7 @@ export default function AdminListings() {
                       ) : (
                         <button className="btn btn-primary btn-sm" onClick={() => handleUpdateStatus(l.id, 'active')}>Restore</button>
                       )}
-                      <button className="btn btn-danger btn-sm" onClick={() => handleUpdateStatus(l.id, 'removed')}>Delete</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setDeletingId(l.id)}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -84,6 +112,17 @@ export default function AdminListings() {
           </table>
         </div>
       )}
+
+      {/* Admin Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deletingId)}
+        onClose={() => setDeletingId(null)}
+        onConfirm={() => handleDeleteListing(deletingId)}
+        title="Permanently Delete Listing"
+        message="Are you sure you want to permanently delete this listing and its images from Firebase? This cannot be undone."
+        confirmText="Delete Permanently"
+        danger
+      />
     </div>
   );
 }

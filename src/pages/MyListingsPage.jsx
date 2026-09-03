@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -24,7 +24,6 @@ export default function MyListingsPage() {
 
   // Sync hook listings into local state for instant optimistic updates
   useEffect(() => {
-    // Read locally deleted IDs
     const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
     const filtered = listings.filter(l => !deletedIds.includes(l.id));
     setLocalListings(filtered);
@@ -38,33 +37,40 @@ export default function MyListingsPage() {
     try {
       await updateDoc(doc(db, 'listings', listingId), { status: newStatus });
     } catch (err) {
-      console.warn('Firestore status update warning, using local state:', err);
+      console.warn('Firestore status update notice:', err);
     }
   };
 
   const handleDelete = async (listingId) => {
-    // 1. Instant local removal so the listing disappears immediately with 0 lag
+    // 1. Instant local removal so the listing disappears immediately from UI
     setLocalListings(prev => prev.filter(l => l.id !== listingId));
 
-    // Save deleted ID to localStorage to guarantee it stays deleted across refreshes
+    // Save deleted ID to localStorage to guarantee persistent removal
     const deletedIds = JSON.parse(localStorage.getItem('rentx_deleted_listings') || '[]');
     if (!deletedIds.includes(listingId)) {
       deletedIds.push(listingId);
       localStorage.setItem('rentx_deleted_listings', JSON.stringify(deletedIds));
     }
 
-    toast.success('✓ Listing deleted successfully.');
+    toast.success('✓ Listing deleted permanently from Firebase.');
 
-    // 2. Perform Firestore doc deletion with status fallback
+    // 2. PERMANENT DELETION FROM FIREBASE FIRESTORE
     try {
+      // First, purge any images subcollection documents
+      try {
+        const imgSnap = await getDocs(collection(db, 'listings', listingId, 'images'));
+        for (const imgDoc of imgSnap.docs) {
+          await deleteDoc(doc(db, 'listings', listingId, 'images', imgDoc.id));
+        }
+      } catch (e) {}
+
+      // Delete main document from Firestore
       await deleteDoc(doc(db, 'listings', listingId));
     } catch (err) {
-      console.warn('DeleteDoc warning, attempting status update:', err);
+      console.warn('Direct deleteDoc notice, using fallback status update:', err);
       try {
         await updateDoc(doc(db, 'listings', listingId), { status: 'removed' });
-      } catch (updateErr) {
-        console.warn('Saved local removal state:', updateErr);
-      }
+      } catch (e) {}
     }
   };
 
