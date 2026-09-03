@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbc02d"/>
+      <stop offset="100%" stop-color="#f57f17"/>
+    </linearGradient>
+  </defs>
+  <!-- R shape with house roof -->
+  <path d="M25 95V25h30c16.569 0 30 10 30 22.5S71.569 70 55 70l30 25H70L47 70v25H25z" fill="url(#logoGrad)"/>
+  <!-- House roof on top of R -->
+  <path d="M40 30L60 12L80 30" stroke="#101010" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Window -->
+  <rect x="51" y="36" width="12" height="12" rx="2" fill="#101010" opacity="0.9"/>
+  <!-- Price tag -->
+  <circle cx="85" cy="85" r="12" fill="url(#logoGrad)" stroke="#101010" stroke-width="2"/>
+  <path d="M82 82l6 6M82 88l6-6" stroke="#101010" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="81" cy="81" r="2" fill="#101010"/>
+</svg>
