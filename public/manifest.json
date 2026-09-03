@@ -1,0 +1,21 @@
+{
+  "short_name": "RentX",
+  "name": "RentX — LPU Campus Marketplace",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#101010",
+  "theme_color": "#fbc02d",
+  "display": "standalone",
+  "orientation": "portrait"
+}

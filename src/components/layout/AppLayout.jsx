@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import BottomNav from './BottomNav';
+import PwaInstallPrompt from '../common/PwaInstallPrompt';
 
 // Pages where we hide the main navigation
 const HIDE_NAV_PAGES = ['/login'];
@@ -20,6 +21,7 @@ export default function AppLayout({ children }) {
       <main className="page">
         {children}
       </main>
+      <PwaInstallPrompt />
       <BottomNav />
     </>
   );
