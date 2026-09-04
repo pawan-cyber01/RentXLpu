@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -59,7 +60,21 @@ function ProtectedRoute({ children }) {
 }
 
 function AdminRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, user, loading } = useAuth();
+  const [securityCode, setSecurityCode] = useState('');
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
+  // Admin email whitelist
+  const ADMIN_EMAIL = 'gamerxmr09@gmail.com';
+  const ADMIN_CODE = '300906';
+
+  // Persist unlock for session so admin doesn't re-enter code on every page nav
+  useEffect(() => {
+    if (sessionStorage.getItem('rentx_admin_unlocked') === 'true') {
+      setIsUnlocked(true);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -71,6 +86,86 @@ function AdminRoute({ children }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Layer 1: Email check
+  if (user?.email !== ADMIN_EMAIL) {
+    return (
+      <div className="page-centered" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto var(--space-4)', color: '#fff', fontSize: '28px'
+        }}>🚫</div>
+        <h2 style={{ fontSize: 'var(--text-xl)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-2)' }}>
+          Access Denied
+        </h2>
+        <p className="text-secondary text-sm">You do not have administrator privileges.</p>
+        <Link to="/" className="btn btn-primary" style={{ marginTop: 'var(--space-4)' }}>
+          Go to Home
+        </Link>
+      </div>
+    );
+  }
+
+  // Layer 2: Security code gate
+  if (!isUnlocked) {
+    const handleCodeSubmit = (e) => {
+      e.preventDefault();
+      if (securityCode === ADMIN_CODE) {
+        setIsUnlocked(true);
+        sessionStorage.setItem('rentx_admin_unlocked', 'true');
+        setCodeError('');
+      } else {
+        setCodeError('Invalid security code. Try again.');
+        setSecurityCode('');
+      }
+    };
+
+    return (
+      <div className="page-centered" style={{ textAlign: 'center', padding: 'var(--space-8)' }}>
+        <div style={{
+          width: '100%', maxWidth: 400, margin: '0 auto',
+          padding: 'var(--space-6)', borderRadius: 'var(--radius-2xl)',
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)',
+          boxShadow: 'var(--shadow-xl)'
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #fbc02d, #f57f17)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto var(--space-4)', color: '#101010', fontSize: '24px'
+          }}>🔒</div>
+
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 'var(--font-bold)', marginBottom: 'var(--space-1)' }}>
+            Admin Security Check
+          </h2>
+          <p className="text-secondary text-xs" style={{ marginBottom: 'var(--space-4)' }}>
+            Enter the 6-digit security code to access the admin panel.
+          </p>
+
+          <form onSubmit={handleCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+            <input
+              type="password"
+              className="input"
+              placeholder="Enter 6-digit code"
+              value={securityCode}
+              onChange={(e) => { setSecurityCode(e.target.value); setCodeError(''); }}
+              maxLength={6}
+              autoFocus
+              style={{ textAlign: 'center', fontSize: 'var(--text-lg)', letterSpacing: '8px', fontWeight: 'var(--font-bold)' }}
+            />
+            {codeError && (
+              <p style={{ color: 'var(--error)', fontSize: 'var(--text-xs)', margin: 0 }}>{codeError}</p>
+            )}
+            <button type="submit" className="btn btn-primary btn-full" style={{ borderRadius: 'var(--radius-xl)' }}>
+              Unlock Admin Panel
+            </button>
+          </form>
+        </div>
+      </div>
+    );
   }
 
   return <AdminLayout>{children}</AdminLayout>;
