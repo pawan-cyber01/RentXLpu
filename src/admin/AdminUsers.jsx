@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Search, Shield, Ban, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Search, Shield, Ban, AlertTriangle, CheckCircle, MessageSquare } from 'lucide-react';
 import { collection, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { maskPhone, timeAgo } from '../lib/utils';
 import Modal from '../components/ui/Modal';
+import { sendAdminMessage } from '../hooks/useChat';
 
 export default function AdminUsers() {
   const { user: adminUser } = useAuth();
@@ -19,6 +20,11 @@ export default function AdminUsers() {
   const [banModalUser, setBanModalUser] = useState(null);
   const [banDuration, setBanDuration] = useState('24 hours');
   const [banReason, setBanReason] = useState('');
+
+  // Admin Message Modal state
+  const [msgModalUser, setMsgModalUser] = useState(null);
+  const [adminMessageText, setAdminMessageText] = useState('');
+  const [sendingMsg, setSendingMsg] = useState(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -39,7 +45,7 @@ export default function AdminUsers() {
 
       // Log admin activity
       await addDoc(collection(db, 'adminLogs'), {
-        adminId: adminUser.uid,
+        adminId: adminUser?.uid || 'ADMIN',
         action: `User status changed to ${newStatus}`,
         targetId: userId,
         targetType: 'user',
@@ -64,6 +70,40 @@ export default function AdminUsers() {
     await handleUpdateStatus(banModalUser.id, `banned (${banDuration})`, banReason);
     setBanModalUser(null);
     setBanReason('');
+  };
+
+  const handleSendAdminMsgSubmit = async (e) => {
+    e.preventDefault();
+    if (!msgModalUser || !adminMessageText.trim()) {
+      toast.error('Message content cannot be empty');
+      return;
+    }
+    setSendingMsg(true);
+    try {
+      await sendAdminMessage({
+        targetUserId: msgModalUser.id,
+        messageText: adminMessageText.trim(),
+        adminId: adminUser?.uid || 'ADMIN',
+      });
+
+      // Log admin activity
+      await addDoc(collection(db, 'adminLogs'), {
+        adminId: adminUser?.uid || 'ADMIN',
+        action: `Sent official Admin message to ${msgModalUser.name || 'User'}`,
+        targetId: msgModalUser.id,
+        targetType: 'user',
+        reason: adminMessageText.trim(),
+        timestamp: serverTimestamp(),
+      });
+
+      toast.success(`Message sent to ${msgModalUser.name || 'User'} with sender name 'Admin'.`);
+      setMsgModalUser(null);
+      setAdminMessageText('');
+    } catch (err) {
+      console.error('Error sending admin message:', err);
+      toast.error('Failed to send admin message.');
+    }
+    setSendingMsg(false);
   };
 
   const filteredUsers = users.filter(u =>
@@ -126,7 +166,15 @@ export default function AdminUsers() {
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                  <div style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setMsgModalUser(u)}
+                      title="Send Message as Admin"
+                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <MessageSquare size={14} /> Message
+                    </button>
                     <button
                       className="btn btn-ghost btn-sm"
                       onClick={() => handleUpdateStatus(u.id, 'warned', 'Warning issued')}
@@ -188,6 +236,43 @@ export default function AdminUsers() {
           </div>
         </form>
       </Modal>
+
+      {/* Admin Message Modal */}
+      <Modal isOpen={!!msgModalUser} onClose={() => setMsgModalUser(null)} title={`Message User: ${msgModalUser?.name || 'Student'}`}>
+        <form onSubmit={handleSendAdminMsgSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div style={{
+            padding: 'var(--space-3)',
+            background: 'var(--bg-tertiary)',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-primary)',
+            fontSize: 'var(--text-xs)',
+            color: 'var(--text-secondary)'
+          }}>
+            <div><strong style={{ color: 'var(--text-primary)' }}>Recipient:</strong> {msgModalUser?.name || 'Student'} ({maskPhone(msgModalUser?.phoneNumber || '')})</div>
+            <div style={{ marginTop: 4 }}><strong style={{ color: 'var(--primary-400)' }}>Sender Name:</strong> Admin 🛡️ (Official Support)</div>
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Message *</label>
+            <textarea
+              className="input"
+              rows={4}
+              placeholder="Type your official Admin message to this user..."
+              value={adminMessageText}
+              onChange={e => setAdminMessageText(e.target.value)}
+              required
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+            <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setMsgModalUser(null)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={sendingMsg}>
+              {sendingMsg ? 'Sending...' : 'Send Message as Admin'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
+

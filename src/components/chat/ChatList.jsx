@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, ChevronRight, ShoppingBag, Tag, User } from 'lucide-react';
+import { MessageCircle, ChevronRight, ShoppingBag, Tag, User, Shield } from 'lucide-react';
 import { timeAgo } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
@@ -25,10 +25,10 @@ export default function ChatList({ conversations = [], onSelectChat }) {
         let photo = isBuyer ? chat.sellerPhoto : chat.buyerPhoto;
         let productImg = chat.listingImage || '';
 
-        // 1. Resolve real name if missing or generic
+        // 1. Resolve real name if missing or generic (only for seller viewing buyer)
         if (!otherName || otherName.includes('Student') || otherName.includes('Lister') || otherName === 'Buyer' || otherName === 'Seller') {
           try {
-            if (otherUserId) {
+            if (otherUserId && otherUserId !== 'ADMIN') {
               const uSnap = await getDoc(doc(db, 'users', otherUserId));
               if (uSnap.exists() && uSnap.data().name) {
                 otherName = uSnap.data().name;
@@ -49,7 +49,7 @@ export default function ChatList({ conversations = [], onSelectChat }) {
         }
 
         extraMap[chat.id] = {
-          realOtherName: otherName || (isBuyer ? 'Lister / Seller' : 'Student / Buyer'),
+          realOtherName: otherName || (isBuyer ? 'Seller' : 'Student / Buyer'),
           photo: photo || '',
           productImg: productImg || '',
         };
@@ -127,12 +127,19 @@ export default function ChatList({ conversations = [], onSelectChat }) {
           {filteredConversations.map(chat => {
             const time = chat.lastMessageAt?.toDate ? timeAgo(chat.lastMessageAt.toDate()) : 'Recently';
             const isIUserBuyer = currentUserId === chat.buyerId;
+            const isAdminChat = chat.isAdminChat || chat.sellerId === 'ADMIN' || chat.buyerId === 'ADMIN';
 
             const extra = chatExtraDetails[chat.id] || {};
-            const realOtherName = extra.realOtherName || (isIUserBuyer ? (chat.sellerName || 'Seller') : (chat.buyerName || 'Buyer'));
+            // Privacy rule: If user is buyer -> hide seller name and show "Seller". If Admin -> "Admin".
+            const displayOtherName = isAdminChat
+              ? 'Admin'
+              : isIUserBuyer
+              ? 'Seller'
+              : (extra.realOtherName || chat.buyerName || 'Buyer');
+
             const productImg = extra.productImg || chat.listingImage || '';
-            const profilePhoto = extra.photo || '';
-            const initial = realOtherName.charAt(0).toUpperCase();
+            const profilePhoto = isIUserBuyer ? '' : (extra.photo || '');
+            const initial = displayOtherName.charAt(0).toUpperCase();
 
             return (
               <div
@@ -146,19 +153,19 @@ export default function ChatList({ conversations = [], onSelectChat }) {
                   padding: 'var(--space-4)',
                   cursor: 'pointer',
                   borderRadius: 'var(--radius-2xl)',
-                  border: '1px solid var(--border-secondary)',
+                  border: isAdminChat ? '1px solid var(--primary-500)' : '1px solid var(--border-secondary)',
                   transition: 'all var(--transition-base)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: 0 }}>
-                  {/* REAL PRODUCT IMAGE LOGO OR USER AVATAR */}
+                  {/* PRODUCT IMAGE LOGO / ADMIN SHIELD / USER AVATAR */}
                   <div style={{
                     width: 48,
                     height: 48,
                     borderRadius: 'var(--radius-xl)',
                     overflow: 'hidden',
-                    background: 'var(--bg-tertiary)',
-                    border: '2px solid var(--primary-500)',
+                    background: isAdminChat ? 'linear-gradient(135deg, #7c3aed, #4c1d95)' : 'var(--bg-tertiary)',
+                    border: isAdminChat ? '2px solid var(--warning)' : '2px solid var(--primary-500)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -166,10 +173,12 @@ export default function ChatList({ conversations = [], onSelectChat }) {
                     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
                     position: 'relative'
                   }}>
-                    {productImg ? (
+                    {isAdminChat ? (
+                      <Shield size={24} color="#ffffff" />
+                    ) : productImg ? (
                       <img src={productImg} alt={chat.listingName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : profilePhoto ? (
-                      <img src={profilePhoto} alt={realOtherName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img src={profilePhoto} alt={displayOtherName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
                       <div style={{
                         width: '100%',
@@ -188,14 +197,20 @@ export default function ChatList({ conversations = [], onSelectChat }) {
                   </div>
 
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    {/* Real Person Name + Role Badge */}
+                    {/* Display Name + Role Badge */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--font-bold)', margin: 0, color: 'var(--text-primary)' }}>
-                        {realOtherName}
+                        {displayOtherName}
                       </h4>
-                      <span className={`badge ${isIUserBuyer ? 'badge-warning' : 'badge-primary'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
-                        {isIUserBuyer ? '🛒 Buying' : '🏷️ Selling'}
-                      </span>
+                      {isAdminChat ? (
+                        <span className="badge badge-warning" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                          🛡️ Admin
+                        </span>
+                      ) : (
+                        <span className={`badge ${isIUserBuyer ? 'badge-warning' : 'badge-primary'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
+                          {isIUserBuyer ? '🛒 Buying' : '🏷️ Selling'}
+                        </span>
+                      )}
                     </div>
 
                     {/* Product Name Subtitle */}
@@ -222,3 +237,4 @@ export default function ChatList({ conversations = [], onSelectChat }) {
     </div>
   );
 }
+

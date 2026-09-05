@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, ShieldAlert, Ban, ArrowLeft, MoreVertical, ShoppingBag } from 'lucide-react';
+import { Send, ShieldAlert, Ban, ArrowLeft, MoreVertical, ShoppingBag, Shield } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -21,19 +21,25 @@ export default function ChatWindow({ chatId, onBack }) {
 
   const isUserBuyer = user?.uid === chatDetails?.buyerId;
   const otherUserId = isUserBuyer ? chatDetails?.sellerId : chatDetails?.buyerId;
+  const isAdminChat = chatDetails?.isAdminChat || chatDetails?.sellerId === 'ADMIN' || otherUserId === 'ADMIN';
 
   // Resolve real person name & profile photo
   useEffect(() => {
     if (!chatDetails) return;
 
-    let initialName = isUserBuyer ? chatDetails.sellerName : chatDetails.buyerName;
-    let initialPhoto = isUserBuyer ? chatDetails.sellerPhoto : chatDetails.buyerPhoto;
+    if (isAdminChat) {
+      setRealOtherName('Admin');
+      return;
+    }
+
+    let initialName = isUserBuyer ? 'Seller' : chatDetails.buyerName;
+    let initialPhoto = isUserBuyer ? '' : chatDetails.buyerPhoto;
 
     setRealOtherName(initialName || (isUserBuyer ? 'Seller' : 'Buyer'));
-    if (initialPhoto) setOtherPhoto(initialPhoto);
+    if (initialPhoto && !isUserBuyer) setOtherPhoto(initialPhoto);
 
-    // Fetch real name from users doc if missing or placeholder
-    if (otherUserId) {
+    // Fetch real name from users doc if not buyer (only show buyer name to seller, hide seller name from buyer)
+    if (otherUserId && !isUserBuyer && otherUserId !== 'ADMIN') {
       getDoc(doc(db, 'users', otherUserId)).then(snap => {
         if (snap.exists()) {
           const data = snap.data();
@@ -42,7 +48,7 @@ export default function ChatWindow({ chatId, onBack }) {
         }
       }).catch(() => {});
     }
-  }, [chatDetails, isUserBuyer, otherUserId]);
+  }, [chatDetails, isUserBuyer, otherUserId, isAdminChat]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,7 +76,17 @@ export default function ChatWindow({ chatId, onBack }) {
     setShowMenu(false);
   };
 
-  const initialLetter = (realOtherName || 'S').charAt(0).toUpperCase();
+  // Header Display Name:
+  // If admin chat -> "Admin"
+  // If user is buyer -> "Seller" (Lister name hidden as requested)
+  // If user is seller -> buyer's name
+  const displayHeaderName = isAdminChat
+    ? 'Admin'
+    : isUserBuyer
+    ? 'Seller'
+    : (realOtherName || 'Buyer');
+
+  const initialLetter = displayHeaderName.charAt(0).toUpperCase();
 
   return (
     <div style={{
@@ -79,7 +95,7 @@ export default function ChatWindow({ chatId, onBack }) {
       height: 'calc(100vh - var(--header-height) - var(--bottom-nav-height))',
       background: 'var(--bg-primary)',
     }}>
-      {/* Header with Real Name & Profile Avatar / Logo */}
+      {/* Header with Display Name & Profile Avatar / Logo */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -95,21 +111,23 @@ export default function ChatWindow({ chatId, onBack }) {
             </button>
           )}
 
-          {/* Real Photo Avatar / Initial Logo */}
+          {/* Photo Avatar / Initial / Shield Logo */}
           <div style={{
             width: 36,
             height: 36,
             borderRadius: '50%',
             overflow: 'hidden',
-            border: '2px solid var(--primary-500)',
-            background: 'var(--bg-tertiary)',
+            border: isAdminChat ? '2px solid var(--warning)' : '2px solid var(--primary-500)',
+            background: isAdminChat ? 'linear-gradient(135deg, #7c3aed, #4c1d95)' : 'var(--bg-tertiary)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0
           }}>
-            {otherPhoto ? (
-              <img src={otherPhoto} alt={realOtherName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {isAdminChat ? (
+              <Shield size={20} color="#ffffff" />
+            ) : otherPhoto && !isUserBuyer ? (
+              <img src={otherPhoto} alt={displayHeaderName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <span style={{ fontWeight: 'var(--font-bold)', color: 'var(--primary-500)', fontSize: '14px' }}>
                 {initialLetter}
@@ -118,9 +136,16 @@ export default function ChatWindow({ chatId, onBack }) {
           </div>
 
           <div>
-            <h3 style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--font-bold)', margin: 0, color: 'var(--text-primary)' }}>
-              {realOtherName}
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 style={{ fontSize: 'var(--text-base)', fontWeight: 'var(--font-bold)', margin: 0, color: 'var(--text-primary)' }}>
+                {displayHeaderName}
+              </h3>
+              {isAdminChat && (
+                <span className="badge badge-warning" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                  Official
+                </span>
+              )}
+            </div>
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--primary-400)', fontWeight: 'var(--font-medium)', display: 'flex', alignItems: 'center', gap: 4 }}>
               <ShoppingBag size={12} /> {chatDetails?.listingName || 'Marketplace Item'}
             </span>

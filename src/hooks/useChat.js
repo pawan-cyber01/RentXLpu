@@ -115,8 +115,12 @@ export function useChat(chatId) {
   const sendMessage = async (senderId, text) => {
     if (!text.trim() || !chatId) return;
 
+    const isAdminMsg = senderId === 'ADMIN' || chatDetails?.isAdminChat;
+
     const messageData = {
       senderId,
+      senderName: isAdminMsg ? 'Admin' : undefined,
+      isAdmin: isAdminMsg || false,
       text: text.trim(),
       createdAt: serverTimestamp(),
       read: false,
@@ -126,6 +130,8 @@ export function useChat(chatId) {
     const localMsg = {
       id: 'msg_' + Date.now(),
       senderId,
+      senderName: isAdminMsg ? 'Admin' : undefined,
+      isAdmin: isAdminMsg || false,
       text: text.trim(),
       createdAt: new Date().toISOString(),
       read: false,
@@ -231,3 +237,66 @@ export async function getOrCreateChat({ buyerId, sellerId, listingId, buyerName,
 
   return chatId;
 }
+
+/**
+ * Helper for Admin to send a direct message to a user with sender name "Admin"
+ */
+export async function sendAdminMessage({ targetUserId, messageText, adminId }) {
+  if (!targetUserId || !messageText?.trim()) return null;
+
+  // Custom deterministic chatId for admin chat
+  const chatId = `admin_${targetUserId}`;
+  const chatRef = doc(db, 'chats', chatId);
+
+  try {
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) {
+      let buyerName = 'Student';
+      try {
+        const uSnap = await getDoc(doc(db, 'users', targetUserId));
+        if (uSnap.exists() && uSnap.data().name) {
+          buyerName = uSnap.data().name;
+        }
+      } catch (e) {}
+
+      const newAdminChat = {
+        participants: Array.from(new Set([targetUserId, 'ADMIN', adminId].filter(Boolean))),
+        buyerId: targetUserId,
+        sellerId: 'ADMIN',
+        buyerName: buyerName,
+        sellerName: 'Admin',
+        listingName: 'RentX Official / Support',
+        isAdminChat: true,
+        lastMessage: messageText.trim(),
+        lastMessageAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      };
+
+      await setDoc(chatRef, newAdminChat);
+    }
+
+    // Add message to subcollection
+    const messageData = {
+      senderId: 'ADMIN',
+      senderName: 'Admin',
+      isAdmin: true,
+      text: messageText.trim(),
+      createdAt: serverTimestamp(),
+      read: false,
+    };
+
+    await addDoc(collection(db, 'chats', chatId, 'messages'), messageData);
+
+    // Update conversation metadata
+    await updateDoc(chatRef, {
+      lastMessage: messageText.trim(),
+      lastMessageAt: serverTimestamp(),
+    });
+
+    return chatId;
+  } catch (err) {
+    console.error('Error sending admin message:', err);
+    throw err;
+  }
+}
+
